@@ -12,12 +12,16 @@
 #include <condition_variable>  //条件变量 --对锁进行封装
 #include <queue>  //消息队列
 #include <vector>
+#include <thrift/transport/TTransportUtils.h>
+#include <thrift/transport/TSocket.h>
+#include "save_client/Save.h"
 
 using namespace std;
 using namespace ::apache::thrift;
 using namespace ::apache::thrift::protocol;
 using namespace ::apache::thrift::transport;
 using namespace ::apache::thrift::server;
+using namespace ::save_service;
 
 using namespace  ::match_service;
 
@@ -42,6 +46,19 @@ class Pool
         void save_result(int a, int b)
         {
             printf("Match number %d %d\n", a, b);
+            std::shared_ptr<TTransport> socket(new TSocket("123.57.47.211", 9090));
+            std::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
+            std::shared_ptr<TProtocol> protocol(new TBinaryProtocol(transport));
+            SaveClient client(protocol);
+
+            try {
+                transport->open();
+                client.save_data("acs_7010", "5817bcf0", a, b);
+
+                transport->close();
+            } catch (TException& tx) {
+                cout << "ERROR: " << tx.what() << endl;
+            }
         }
 
         void match()
@@ -68,7 +85,7 @@ class Pool
                 if (users[i].id == user.id)
                 {
                     users.erase(users.begin() + i);
-                        break;
+                    break;
                 }
             }
         }
@@ -96,7 +113,7 @@ class MatchHandler : virtual public MatchIf {
         int32_t remove_user(const User& user, const std::string& info) {
             // Your implementation goes here
             printf("remove_user\n");
-            
+
             unique_lock<mutex> lck(message_queue.m);
             message_queue.q.push({user, "remove"});
             message_queue.cv.notify_all();
